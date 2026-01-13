@@ -1,0 +1,39 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            // Essential Properties:
+            "name": "C/C++ Debug",
+            "type": "cppdbg",
+            
+            // 💡 Ensure this property is present and set to "launch" 💡
+            "request": "launch", 
+            
+            // Compiler and Executable Properties:
+            "program": "${fileDirname}/${fileBasenameNoExtension}.exe",
+            "args": [],
+            "stopAtEntry": false,
+            
+            // The fix for your file access issue:
+            "cwd": "${workspaceFolder}", 
+
+            // Link the debugger to the new generic build task
+            "preLaunchTask": "C/C++: gcc.exe build active file",
+            
+            // Debugger details (varies based on your system, e.g., gdb or lldb)
+            "MIMode": "gdb",
+            "miDebuggerPath": "C:/msys64/ucrt64/bin/gdb.exe", 
+            "setupCommands": [
+                {
+                    "description": "Enable pretty printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            // ... (other properties like preLaunchTask)
+        }
+    ]
+}
