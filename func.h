@@ -111,7 +111,7 @@ static int  car_serial_exists(const car *arr, size_t n, int serial);
 static int  load_all_users(user **out_arr, size_t *out_n);
 static int  save_all_users(const user *arr, size_t n);
 
-void update_log(const user *u, action_t act, const char *details);
+/*Eyal's functions*/
 void change_personal_info(user* User);
 void add_user(user* currentUser);
 void update_car(user* currentUser, car_node* head);
@@ -150,7 +150,7 @@ void users_change_level_flow(const user *current_user);
 void update_personal_details_flow(user *current_user);
 
 /* Logging */
-void log_action(const user *u, action_t act, const char *details);
+void update_log(const user *u, action_t act, const char *details);
 
 /* Utilities */
 void read_line(const char *prompt, char *buf, size_t n);
