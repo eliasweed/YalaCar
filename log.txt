@@ -1,1 +1,8 @@
-[2026-01-07 22:37:06] user=admin level=3 action=ADD_USER details=Added new user: eded
+[2026-01-13 21:21:36] user=admin level=3 action=ADD_USER details=Initial admin created
+[2026-01-13 21:22:01] user=admin level=3 action=LOGIN_SUCCESS details=Login success
+[2026-01-13 21:22:25] user=admin level=3 action=ADD_USER details=ed
+[2026-01-13 21:23:50] user=admin level=3 action=ADD_CAR details=Car added sorted
+[2026-01-13 21:24:16] user=admin level=3 action=UPDATE_PROFILE details=Name updated
+[2026-01-13 21:25:03] user=admin level=3 action=UPDATE_CAR details=Price updated
+[2026-01-13 21:25:49] user=admin level=3 action=DELETE_CAR details=Deleted car
+[2026-01-13 21:27:18] user=admin level=3 action=ADD_CAR details=Car added sorted
