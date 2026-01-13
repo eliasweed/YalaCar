@@ -1,375 +1,27 @@
+#include "func.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <time.h>
-#include "func.h"
+#include <ctype.h>
 
-/* =========================
-   Input helpers
-   ========================= */
-void read_line(const char *prompt, char *buf, size_t n)
-{
-    if (!buf || n == 0) return;
+/* ==========================================================
+   SECTION 1: INTERNAL HELPERS & FILE UTILS
+   ========================================================== */
 
-    printf("%s", prompt);
-    fflush(stdout);
-
-    if (!fgets(buf, (int)n, stdin)) {
-        buf[0] = '\0';
-        return;
-    }
-
-    size_t len = strlen(buf);
-    if (len > 0 && buf[len - 1] == '\n') buf[len - 1] = '\0';
-}
-
-int read_int(const char *prompt, int minv, int maxv)
-{
-    char line[128];
-    int v;
-
-    while (1) {
-        read_line(prompt, line, sizeof(line));
-        if (sscanf(line, "%d", &v) == 1 && v >= minv && v <= maxv) return v;
-        printf("Invalid number. Try again.\n");
-    }
-}
-
-double read_double(const char *prompt, double minv, double maxv)
-{
-    char line[128];
-    double v;
-
-    while (1) {
-        read_line(prompt, line, sizeof(line));
-        if (sscanf(line, "%lf", &v) == 1 && v >= minv && v <= maxv) return v;
-        printf("Invalid number. Try again.\n");
-    }
-}
-
-int read_bool01(const char *prompt)
-{
-    return read_int(prompt, 0, 1);
-}
-
-int read_tristate(const char *prompt)
-{
-    return read_int(prompt, -1, 1);
-}
-
-/* =========================
-   Date helpers
-   ========================= */
-static int date_is_valid(date d)
-{
-    if (d.year < 1900 || d.year > 2200) return 0;
-    if (d.month < 1 || d.month > 12) return 0;
-    if (d.day < 1 || d.day > 31) return 0;
-
-    static const int mdays[12] = {31,28,31,30,31,30,31,31,30,31,30,31};
-    int maxd = mdays[d.month - 1];
-
-    int leap = ((d.year % 4 == 0 && d.year % 100 != 0) || (d.year % 400 == 0));
-    if (d.month == 2 && leap) maxd = 29;
-
-    return (d.day <= maxd);
-}
-
-date read_date(const char *prompt)
-{
-    char line[128];
-    date d;
-
-    while (1) {
-        read_line(prompt, line, sizeof(line));
-        if (sscanf(line, "%d %d %d", &d.day, &d.month, &d.year) == 3 && date_is_valid(d)) {
-            return d;
-        }
-        printf("Invalid date. Format: dd mm yyyy\n");
-    }
-}
-
-int date_cmp(date a, date b)
-{
-    if (a.year != b.year) return (a.year < b.year) ? -1 : 1;
-    if (a.month != b.month) return (a.month < b.month) ? -1 : 1;
-    if (a.day != b.day) return (a.day < b.day) ? -1 : 1;
-    return 0;
-}
-
-int date_in_range(date x, int use_min, date mn, int use_max, date mx)
-{
-    if (use_min && date_cmp(x, mn) < 0) return 0;
-    if (use_max && date_cmp(x, mx) > 0) return 0;
+static int file_exists(const char *path) {
+    FILE *f = fopen(path, "rb");
+    if (!f) return 0;
+    fclose(f);
     return 1;
 }
 
-/* =========================
-   String helpers
-   ========================= */
-static int char_lower(int ch)
-{
-    if (ch >= 'A' && ch <= 'Z') return ch - 'A' + 'a';
-    return ch;
+static void create_empty_binary_file(const char *path) {
+    FILE *f = fopen(path, "wb");
+    if (f) fclose(f);
 }
 
-int string_contains_ci(const char *haystack, const char *needle)
-{
-    if (!needle || needle[0] == '\0') return 1;
-    if (!haystack) return 0;
-
-    size_t hlen = strlen(haystack);
-    size_t nlen = strlen(needle);
-    if (nlen > hlen) return 0;
-
-    for (size_t i = 0; i + nlen <= hlen; i++) {
-        size_t j = 0;
-        for (; j < nlen; j++) {
-            if (char_lower((unsigned char)haystack[i + j]) != char_lower((unsigned char)needle[j])) break;
-        }
-        if (j == nlen) return 1;
-    }
-    return 0;
-}
-
-
-
-static const char* tf_name(text_field_t tf)
-{
-    switch (tf) {
-        case TF_MODEL: return "Model";
-        case TF_MAKE:  return "Make";
-        case TF_PLATE: return "Plate";
-        case TF_COLOR: return "Color";
-        default:       return "Unknown";
-    }
-}
-
-static const char* get_field_ptr(const car *c, text_field_t tf)
-{
-    switch (tf) {
-        case TF_MODEL: return c->model;
-        case TF_MAKE:  return c->make;
-        case TF_PLATE: return c->plate;
-        case TF_COLOR: return c->color;
-        default:       return "";
-    }
-}
-
-static void build_log_details(char *dst, size_t n,
-                              const char *text1_label, const char *text1_val,
-                              const char *text2_label, const char *text2_val,
-                              double min_price, double max_price,
-                              int min_mileage, int max_mileage,
-                              int min_seats, int max_seats,
-                              double min_engine, double max_engine,
-                              double min_range, double max_range,
-                              int q_electric, int q_luxury, int q_auto, int q_family, int q_test)
-{
-    /* Keep it concise but informative */
-    snprintf(dst, n,
-        "criteria: %s='%s'%s%s%s price[%.2f..%.2f] mileage[%d..%d] seats[%d..%d] engine[%.2f..%.2f] range[%.2f..%.2f] bool(e=%d l=%d a=%d f=%d t=%d)",
-        text1_label, text1_val,
-        (text2_label ? " AND " : ""),
-        (text2_label ? text2_label : ""),
-        (text2_label ? "='" : ""),
-        min_price, max_price,
-        min_mileage, max_mileage,
-        min_seats, max_seats,
-        min_engine, max_engine,
-        min_range, max_range,
-        q_electric, q_luxury, q_auto, q_family, q_test
-    );
-
-    /* fix formatting if second field exists */
-    if (text2_label) {
-        size_t len = strlen(dst);
-        if (len < n - 2) {
-            /* append second value close */
-            strncat(dst, text2_val, n - strlen(dst) - 1);
-            strncat(dst, "'", n - strlen(dst) - 1);
-        }
-    }
-}
-
-void cars_search_flow(const user *current_user)
-{
-    /* Choose text search mode */
-    printf("\n[SEARCH] Text search mode:\n");
-    printf("1) Single text field\n");
-    printf("2) Two text fields together (AND)\n");
-    int mode = read_int("Choose (1-2): ", 1, 2);
-
-    text_field_t f1 = (text_field_t)read_int("Choose field #1 (1=Model 2=Make 3=Plate 4=Color): ", 1, 4);
-    char q1[64] = {0};
-    {
-        char p[128];
-        snprintf(p, sizeof(p), "Enter value for %s (empty=ignore): ", tf_name(f1));
-        read_line(p, q1, sizeof(q1));
-    }
-
-    text_field_t f2 = TF_MODEL;
-    char q2[64] = {0};
-    int use_two = 0;
-    if (mode == 2) {
-        use_two = 1;
-        f2 = (text_field_t)read_int("Choose field #2 (1=Model 2=Make 3=Plate 4=Color): ", 1, 4);
-        {
-            char p[128];
-            snprintf(p, sizeof(p), "Enter value for %s (empty=ignore): ", tf_name(f2));
-            read_line(p, q2, sizeof(q2));
-        }
-    }
-
-    /* Numeric filters (use sentinel to ignore) */
-    printf("\n[SEARCH] Numeric filters (enter -1 to ignore):\n");
-    double min_price = read_double("Min price (-1 ignore): ", -1.0, 1e12);
-    double max_price = read_double("Max price (-1 ignore): ", -1.0, 1e12);
-    if (min_price >= 0 && max_price >= 0 && min_price > max_price) { double t=min_price; min_price=max_price; max_price=t; }
-    if (min_price < 0) min_price = -1.0;
-    if (max_price < 0) max_price = -1.0;
-
-    int min_mileage = read_int("Min mileage (-1 ignore): ", -1, 3000000);
-    int max_mileage = read_int("Max mileage (-1 ignore): ", -1, 3000000);
-    if (min_mileage >= 0 && max_mileage >= 0 && min_mileage > max_mileage) { int t=min_mileage; min_mileage=max_mileage; max_mileage=t; }
-
-    int min_seats = read_int("Min seats (-1 ignore): ", -1, 12);
-    int max_seats = read_int("Max seats (-1 ignore): ", -1, 12);
-    if (min_seats >= 0 && max_seats >= 0 && min_seats > max_seats) { int t=min_seats; min_seats=max_seats; max_seats=t; }
-
-    double min_engine = read_double("Min engine CC (-1 ignore): ", -1.0, 1e12);
-    double max_engine = read_double("Max engine CC (-1 ignore): ", -1.0, 1e12);
-    if (min_engine >= 0 && max_engine >= 0 && min_engine > max_engine) { double t=min_engine; min_engine=max_engine; max_engine=t; }
-
-    double min_range = read_double("Min range km (-1 ignore): ", -1.0, 1e12);
-    double max_range = read_double("Max range km (-1 ignore): ", -1.0, 1e12);
-    if (min_range >= 0 && max_range >= 0 && min_range > max_range) { double t=min_range; min_range=max_range; max_range=t; }
-
-    /* Boolean filters tristate */
-    printf("\n[SEARCH] Boolean filters (-1 any, 0 no, 1 yes):\n");
-    int q_electric  = read_tristate("Is electric? (-1/0/1): ");
-    int q_luxury    = read_tristate("Is luxury?   (-1/0/1): ");
-    int q_auto      = read_tristate("Is automatic?(-1/0/1): ");
-    int q_family    = read_tristate("Is family?   (-1/0/1): ");
-    int q_test      = read_tristate("Test valid?  (-1/0/1): ");
-
-    /* Date ranges */
-    printf("\n[SEARCH] Date filters:\n");
-    int use_manu_min = read_bool01("Filter Manufacture MIN date? (0/1): ");
-    date manu_min = {1,1,1900};
-    if (use_manu_min) manu_min = read_date("Manufacture MIN (dd mm yyyy): ");
-
-    int use_manu_max = read_bool01("Filter Manufacture MAX date? (0/1): ");
-    date manu_max = {31,12,2200};
-    if (use_manu_max) manu_max = read_date("Manufacture MAX (dd mm yyyy): ");
-    if (use_manu_min && use_manu_max && date_cmp(manu_min, manu_max) > 0) { date t=manu_min; manu_min=manu_max; manu_max=t; }
-
-    int use_road_min = read_bool01("Filter Road MIN date? (0/1): ");
-    date road_min = {1,1,1900};
-    if (use_road_min) road_min = read_date("Road MIN (dd mm yyyy): ");
-
-    int use_road_max = read_bool01("Filter Road MAX date? (0/1): ");
-    date road_max = {31,12,2200};
-    if (use_road_max) road_max = read_date("Road MAX (dd mm yyyy): ");
-    if (use_road_min && use_road_max && date_cmp(road_min, road_max) > 0) { date t=road_min; road_min=road_max; road_max=t; }
-
-    /* Log criteria */
-    char details[900];
-    build_log_details(details, sizeof(details),
-                      tf_name(f1), q1,
-                      (use_two ? tf_name(f2) : NULL), q2,
-                      (min_price < 0 ? 0.0 : min_price), (max_price < 0 ? 0.0 : max_price),
-                      (min_mileage < 0 ? 0 : min_mileage), (max_mileage < 0 ? 0 : max_mileage),
-                      (min_seats < 0 ? 0 : min_seats), (max_seats < 0 ? 0 : max_seats),
-                      (min_engine < 0 ? 0.0 : min_engine), (max_engine < 0 ? 0.0 : max_engine),
-                      (min_range < 0 ? 0.0 : min_range), (max_range < 0 ? 0.0 : max_range),
-                      q_electric, q_luxury, q_auto, q_family, q_test);
-    update_log(current_user, ACT_SEARCH_CAR, details);
-
-    /* Scan cars file */
-    FILE *f = fopen(CARS_FILE, "rb");
-    if (!f) {
-        printf("Cannot open cars file.\n");
-        return;
-    }
-
-    printf("\n============= SEARCH RESULTS =============\n");
-    car car;
-    int match_count = 0;
-
-    while (fread(&car, sizeof(car), 1, f) == 1) {
-        /* text filters */
-        if (q1[0] != '\0' && !string_contains_ci(get_field_ptr(&car, f1), q1)) continue;
-        if (use_two && q2[0] != '\0' && !string_contains_ci(get_field_ptr(&car, f2), q2)) continue;
-
-        /* numeric filters */
-        if (min_price >= 0 && car.price < min_price) continue;
-        if (max_price >= 0 && car.price > max_price) continue;
-
-        if (min_mileage >= 0 && car.mileage < min_mileage) continue;
-        if (max_mileage >= 0 && car.mileage > max_mileage) continue;
-
-        if (min_seats >= 0 && car.seats < min_seats) continue;
-        if (max_seats >= 0 && car.seats > max_seats) continue;
-
-        /* engine filter: use engine_cc (electric cars have 0) */
-        if (min_engine >= 0 && car.engine_cc < min_engine) continue;
-        if (max_engine >= 0 && car.engine_cc > max_engine) continue;
-
-        if (min_range >= 0 && car.range_km < min_range) continue;
-        if (max_range >= 0 && car.range_km > max_range) continue;
-
-        /* boolean tristate */
-        if (q_electric != -1 && car.is_electric != q_electric) continue;
-        if (q_luxury   != -1 && car.is_luxury   != q_luxury) continue;
-        if (q_auto     != -1 && car.is_automatic!= q_auto) continue;
-        if (q_family   != -1 && car.is_family   != q_family) continue;
-        if (q_test     != -1 && car.test_valid  != q_test) continue;
-
-        /* date ranges */
-        if (!date_in_range(car.manufacture_date, use_manu_min, manu_min, use_manu_max, manu_max)) continue;
-        if (!date_in_range(car.road_date,        use_road_min, road_min, use_road_max, road_max)) continue;
-
-        print_car(&car);
-        match_count++;
-    }
-
-    fclose(f);
-
-    if (match_count == 0) {
-        printf("(No matches)\n");
-        return;
-    }
-
-    printf("==========================================\n");
-    printf("Matches found: %d\n", match_count);
-
-    /* Per assignment: allow edit by typing the serial number */
-    int serial = read_int("Enter serial to edit (0 to go back): ", 0, 1000000000);
-    if (serial == 0) return;
-
-    /* Level-based actions */
-    if (current_user->level < 2) {
-        printf("Level 1: view-only. Ask admin to modify.\n");
-        return;
-    }
-
-    printf("\nActions:\n");
-    printf("1) Update car (by serial)\n");
-    printf("2) Delete car (by serial)\n");
-    printf("0) Back\n");
-    int act = read_int("Choose: ", 0, 2);
-
-    if (act == 1) {
-        cars_update_by_serial(current_user, serial);
-    } else if (act == 2) {
-        cars_delete_by_serial(current_user, serial);
-    }
-}
-
-
-static const char* action_to_string(action_t a)
-{
+static const char* action_to_string(action_t a) {
     switch (a) {
         case ACT_LOGIN_SUCCESS:   return "LOGIN_SUCCESS";
         case ACT_LOGIN_FAIL:      return "LOGIN_FAIL";
@@ -380,238 +32,320 @@ static const char* action_to_string(action_t a)
         case ACT_DELETE_CAR:      return "DELETE_CAR";
         case ACT_SHOW_USERS:      return "SHOW_USERS";
         case ACT_ADD_USER:        return "ADD_USER";
-        case ACT_DELETE_USER:     return "DELETE_USER";
-        case ACT_CHANGE_LEVEL:    return "CHANGE_LEVEL";
         case ACT_UPDATE_PROFILE:  return "UPDATE_PROFILE";
-        case ACT_EXIT:            return "EXIT";
         default:                  return "UNKNOWN";
     }
 }
 
-void update_log(const user *u, action_t act, const char *details) {
-    FILE* f = fopen(LOG_FILE, "a");
-    if (f == NULL) {
-        printf("Error: Could not open log file.\n");
-        return;
-    }
+static int load_all_cars(car_t **out_arr, size_t *out_n) {
+    FILE *f = fopen(CARS_FILE, "rb");
+    if (!f) { *out_arr = NULL; *out_n = 0; return 0; }
+    fseek(f, 0, SEEK_END);
+    long sz = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    size_t n = (size_t)sz / sizeof(car_t);
+    if (n == 0) { *out_arr = NULL; *out_n = 0; fclose(f); return 1; }
+    *out_arr = (car_t*)malloc(n * sizeof(car_t));
+    fread(*out_arr, sizeof(car_t), n, f);
+    *out_n = n;
+    fclose(f);
+    return 1;
+}
 
+static int save_all_cars(const car_t *arr, size_t n) {
+    FILE *f = fopen(CARS_FILE, "wb");
+    if (!f) return 0;
+    if (n > 0) fwrite(arr, sizeof(car_t), n, f);
+    fclose(f);
+    return 1;
+}
+
+/* ==========================================================
+   SECTION 2: SYSTEM BOOTSTRAP & LOGGING
+   ========================================================== */
+
+void ensure_system_files_exist(void) {
+    if (!file_exists(USERS_FILE)) create_empty_binary_file(USERS_FILE);
+    if (!file_exists(CARS_FILE))  create_empty_binary_file(CARS_FILE);
+    if (!file_exists(LOG_FILE)) { FILE *f = fopen(LOG_FILE, "w"); if (f) fclose(f); }
+}
+
+void ensure_admin_user_exists(void) {
+    FILE *f = fopen(USERS_FILE, "rb");
+    fseek(f, 0, SEEK_END);
+    if (ftell(f) > 0) { fclose(f); return; }
+    fclose(f);
+    user_t admin = {"admin", "admin", 3, "Manager_System"};
+    f = fopen(USERS_FILE, "ab");
+    fwrite(&admin, sizeof(user_t), 1, f);
+    fclose(f);
+    log_action(&admin, ACT_ADD_USER, "Initial admin created");
+}
+
+void log_action(const user_t *u, action_t act, const char *details) {
+    FILE *f = fopen(LOG_FILE, "a");
+    if (!f) return;
     time_t now = time(NULL);
     struct tm *tmv = localtime(&now);
-
-    fprintf(f,
-        "[%04d-%02d-%02d %02d:%02d:%02d] user=%s level=%d action=%s details=%s\n",
-        tmv->tm_year + 1900, tmv->tm_mon + 1, tmv->tm_mday,
-        tmv->tm_hour, tmv->tm_min, tmv->tm_sec,
-        (u ? u->username : "N/A"),
-        (u ? u->level : -1),
-        action_to_string(act),
-        (details ? details : "")
-    );
-
+    fprintf(f, "[%04d-%02d-%02d %02d:%02d:%02d] user=%s level=%d action=%s details=%s\n",
+            tmv->tm_year + 1900, tmv->tm_mon + 1, tmv->tm_mday,
+            tmv->tm_hour, tmv->tm_min, tmv->tm_sec,
+            (u ? u->username : "N/A"), (u ? u->level : -1),
+            action_to_string(act), (details ? details : ""));
     fclose(f);
 }
 
-void change_personal_info(user* User) {
-    int choice;//to choose which parameter to change
-    int stay = 1;//for the parameter choosing part
-    user temp;
+/* ==========================================================
+   SECTION 3: AUTHENTICATION & MENUS
+   ========================================================== */
+
+int login_flow(user_t *out_user) {
+    int tries = 0;
+    while (tries < LOGIN_MAX_TRIES) {
+        char uname[MAX_USERNAME], pass[MAX_PASSWORD];
+        read_line("\nUsername: ", uname, sizeof(uname));
+        read_line("Password: ", pass, sizeof(pass));
+
+        FILE *f = fopen(USERS_FILE, "rb"); // קריאה בינארית
+        if (!f) return 0;
+
+        user_t tmp;
+        int found = 0;
+        while (fread(&tmp, sizeof(user_t), 1, f)) {
+            // השוואה נקייה של מחרוזות
+            if (strcmp(tmp.username, uname) == 0 && strcmp(tmp.password, pass) == 0) {
+                *out_user = tmp;
+                found = 1;
+                break;
+            }
+        }
+        fclose(f);
+
+        if (found) {
+            log_action(out_user, ACT_LOGIN_SUCCESS, "Login success");
+            return 1;
+        }
+        tries++;
+        printf("Invalid credentials. Tries left: %d\n", LOGIN_MAX_TRIES - tries);
+    }
+    return 0;
+}
+
+void run_main_menu(user_t *current_user) {
+    while (1) {
+        printf("\nWelcome %s | Level %d\n", current_user->fullname, current_user->level);
+        printf("1) Search Car\n2) Add Car\n3) List All Cars\n4) Update Profile\n");
+        if (current_user->level >= 2) printf("5) Update Car\n6) Delete Car\n");
+        if (current_user->level == 3) printf("7) List Users\n8) Add User\n");
+        printf("0) Logout\nChoose: ");
+        int choice = read_int("", 0, 8);
+        if (choice == 0) break;
+        switch (choice) {
+            case 1: cars_search_flow(current_user); break;
+            case 2: cars_add_flow(current_user); break;
+            case 3: cars_list_all_flow(current_user); break;
+            case 4: change_personal_info(current_user); break;
+            case 5: if(current_user->level >= 2) cars_update_by_serial(current_user, read_int("Serial: ", 1, 1e9)); break;
+            case 6: if(current_user->level >= 2) cars_delete_by_serial(current_user, read_int("Serial: ", 1, 1e9)); break;
+            case 7: if(current_user->level == 3) users_list_flow(current_user); break;
+            case 8: if(current_user->level == 3) add_user(current_user); break;
+        }
+    }
+}
+
+/* ==========================================================
+   SECTION 4: CAR SEARCH & LISTING
+   ========================================================== */
+
+void print_car(const car_t *c) {
+    printf("--------------------------------------------------\n");
+    printf("Serial: %d | Plate: %s | Model: %s | Make: %s\n", c->serial, c->plate, c->model, c->make);
+    printf("Price: %.2f | Mileage: %d | Electric: %s\n", c->price, c->mileage, c->is_electric ? "Yes" : "No");
+}
+
+void cars_list_all_flow(const user_t *current_user) {
+    FILE *f = fopen(CARS_FILE, "rb");
+    if (!f) return;
+    car_t c;
+    while (fread(&c, sizeof(car_t), 1, f)) print_car(&c);
+    fclose(f);
+}
+
+static const char* get_field_ptr(const car_t *c, int tf) {
+    switch (tf) {
+        case 1: return c->model; case 2: return c->make;
+        case 3: return c->plate; case 4: return c->color;
+        default: return "";
+    }
+}
+
+void cars_search_flow(const user_t *current_user) {
+    int f1 = read_int("Search by (1=Model 2=Make 3=Plate 4=Color): ", 1, 4);
+    char q1[64]; read_line("Enter search value: ", q1, sizeof(q1));
+    double min_p = read_double("Min Price (-1 ignore): ", -1.0, 1e12);
+
+    FILE *f = fopen(CARS_FILE, "rb");
+    car_t c; int found = 0;
+    while (fread(&c, sizeof(car_t), 1, f)) {
+        if (q1[0] && !string_contains_ci(get_field_ptr(&c, f1), q1)) continue;
+        if (min_p >= 0 && c.price < min_p) continue;
+        print_car(&c); found++;
+    }
+    fclose(f);
+    printf("Total matches: %d\n", found);
+}
+
+/* ==========================================================
+   SECTION 5: CAR UPDATE/DELETE/ADD
+   ========================================================== */
+
+static int cmp_car_serial(const void *a, const void *b) {
+    return ((car_t*)a)->serial - ((car_t*)b)->serial;
+}
+
+void cars_add_flow(const user_t *current_user) {
+    car_t c; memset(&c, 0, sizeof(c));
+    c.serial = read_int("New Serial: ", 1, 1e9);
+    read_line("Model: ", c.model, MAX_MODEL);
+    read_line("Plate: ", c.plate, MAX_PLATE);
+    read_line("Make: ", c.make, MAX_MAKE);
+    c.price = read_double("Price: ", 0, 1e12);
+    c.is_electric = read_bool01("Electric? (0/1): ");
+    c.manufacture_date = read_date("Manufacture date (dd mm yyyy): ");
+
+    car_t *arr; size_t n;
+    load_all_cars(&arr, &n);
+    car_t *new_arr = realloc(arr, (n + 1) * sizeof(car_t));
+    new_arr[n] = c;
+    qsort(new_arr, n + 1, sizeof(car_t), cmp_car_serial);
+    save_all_cars(new_arr, n + 1);
+    free(new_arr);
+    log_action(current_user, ACT_ADD_CAR, "Car added sorted");
+}
+
+int cars_update_by_serial(const user_t *current_user, int serial) {
+    car_t *arr; size_t n;
+    if (!load_all_cars(&arr, &n)) return 0;
+    int idx = -1;
+    for (size_t i = 0; i < n; i++) if (arr[i].serial == serial) { idx = i; break; }
+    if (idx == -1) { free(arr); printf("Serial not found.\n"); return 0; }
+
+    printf("Updating Serial %d. Enter new price (current %.2f, -1 keep): ", serial, arr[idx].price);
+    double np = read_double("", -1.0, 1e12);
+    if (np >= 0) arr[idx].price = np;
     
-    printf("Editing Personal Information for %s\n", User->username);//starting message
+    save_all_cars(arr, n);
+    free(arr);
+    log_action(current_user, ACT_UPDATE_CAR, "Price updated");
+    return 1;
+}
 
-    /*Choose parameter to change*/
-    while (stay) {
-        printf("Which parameter would you like to change?\n");
-        printf("1. Password\n");
-        printf("2. Full Name\n");
-        printf("3. Finish and Save\n");
-        printf("Your choice: ");
-        
-        if (scanf("%d", &choice) != 1) { //get number and check if valid
-            printf("Invalid input. Please enter a number.\n");
+int cars_delete_by_serial(const user_t *current_user, int serial) {
+    car_t *arr; size_t n;
+    if (!load_all_cars(&arr, &n)) return 0;
+    int idx = -1;
+    for (size_t i = 0; i < n; i++) if (arr[i].serial == serial) { idx = i; break; }
+    if (idx == -1) { free(arr); return 0; }
 
-            
-            while(getchar() != '\n'); //Clean buffer from invalid input
+    for (size_t i = idx; i < n - 1; i++) arr[i] = arr[i + 1];
+    save_all_cars(arr, n - 1);
+    free(arr);
+    log_action(current_user, ACT_DELETE_CAR, "Deleted car");
+    return 1;
+}
 
-            continue;//try again if failed
-        }
-        getchar(); //Clean buffer from \n
+/* ==========================================================
+   SECTION 6: USER & UTILS
+   ========================================================= */
 
-        /*Switch case for chosen parameter*/
-        switch (choice) {
-            case 1:
-                printf("Enter new password (up to 14 characters): ");
-                scanf("%14s", User->password);//get up to 14 characters and update the user's password
-                update_log(User, ACT_UPDATE_PROFILE, "Updated password");//log update
-                break;
-            case 2:
-                printf("Enter new full name (up to 19 characters): ");
-                fgets(User->fullname, MAX_FULLNAME, stdin);//get full name (with spaces)
-                User->fullname[strcspn(User->fullname, "\n")] = 0;//remove the \n in the end
-                update_log(User, ACT_UPDATE_PROFILE, "Updated full name");//log update
-                break;
-            case 3:
-                stay = 0;//to exit the parameter choosing part
-                continue;
-            default:
-                printf("Parameter does not exist. Please try again.\n");
-                continue;
-        }
-
-        if (stay) {
-            printf("Would you like to change another parameter? (1-Yes / 0-No): ");
-            scanf("%d", &stay);
-        }
-    }
-
-    /*update file*/
-    FILE* f = fopen(USERS_FILE, "rb+"); //Open the binary file in read and write mode
-    if (!f) {//error
-        printf("Error: Could not open users file.\n");
-        return;
-    }
-
-    while (fread(&temp, sizeof(user), 1, f)) {
-        if (strcmp(temp.username, User->username) == 0) {//find the username we want to change
-            fseek(f, -((long)sizeof(user)), SEEK_CUR); // point to the start of the username just read
-            fwrite(User, sizeof(user), 1, f);   // update parameters
-            break;
+void change_personal_info(user_t *User) {
+    read_line("New Full Name: ", User->fullname, MAX_FULLNAME);
+    FILE *f = fopen(USERS_FILE, "rb+");
+    user_t temp;
+    while (fread(&temp, sizeof(user_t), 1, f)) {
+        if (strcmp(temp.username, User->username) == 0) {
+            fseek(f, -((long)sizeof(user_t)), SEEK_CUR);
+            fwrite(User, sizeof(user_t), 1, f); break;
         }
     }
     fclose(f);
-    printf("Changes saved successfully. Returning to main menu.\n");
+    log_action(User, ACT_UPDATE_PROFILE, "Name updated");
 }
 
-void add_user(user* currentUser) {
-    user newUser;
-    FILE* f;
-    char details[50];
-
-    printf("Adding a New User to the system\n"); //starting message
-
-    /* Get username */
-    printf("Enter username (up to 14 characters): ");
-    scanf("%14s", newUser.username);
-    getchar(); // Clean buffer from \n
-
-    /* Get password */
-    printf("Enter password (up to 14 characters): ");
-    scanf("%14s", newUser.password);
-    getchar(); // Clean buffer from \n
-
-    /* Get authorization level */
-    printf("Enter authorization level (1-Viewer, 2-Editor, 3-Manager): ");
-    if (scanf("%d", &newUser.level) != 1) {
-        printf("Invalid input. Please enter a number.\n");
-        while(getchar() != '\n'); // Clean buffer from invalid input
-        return;
-    }
-    getchar(); // Clean buffer from \n
-
-    /* Get full name */
-    printf("Enter full name (up to 19 characters): ");
-    fgets(newUser.fullname, MAX_FULLNAME, stdin);
-    newUser.fullname[strcspn(newUser.fullname, "\n")] = 0; // remove the \n in the end
-
-    /* update file */
-    f = fopen("users.bin", "ab"); // Open the binary file in append mode 
-    if (!f) { // error
-        printf("Error: Could not open users file.\n");
-        return;
-    }
-
-    /* write new user to file */
-    if (fwrite(&newUser, sizeof(user), 1, f) == 1) {
-        printf("User %s added successfully.\n", newUser.username);
-        
-        /* log update */
-        sprintf(details, "Added new user: %s", newUser.username);
-        update_log(currentUser, ACT_ADD_USER, details);
-    } else {
-        printf("Error: Failed to write user to file.\n");
-    }
-
+void add_user(user_t *currentUser) {
+    user_t nu;
+    read_line("Username: ", nu.username, MAX_USERNAME);
+    read_line("Password: ", nu.password, MAX_PASSWORD);
+    nu.level = read_int("Level (1-3): ", 1, 3);
+    read_line("Full Name: ", nu.fullname, MAX_FULLNAME);
+    FILE *f = fopen(USERS_FILE, "ab");
+    fwrite(&nu, sizeof(user_t), 1, f);
     fclose(f);
-    printf("Returning to main menu.\n");
+    log_action(currentUser, ACT_ADD_USER, nu.username);
 }
 
-void update_car(user* currentUser, car_node* head) {
-    char plate[MAX_PLATE];
-    car_node* temp = head;
-    int choice, stay = 1;
-    char details[100];
+void users_list_flow(const user_t *current_user) {
+    FILE *f = fopen(USERS_FILE, "rb");
+    user_t u;
+    printf("\n--- System Users ---\n");
+    while (fread(&u, sizeof(user_t), 1, f))
+        printf("User: %-15s | Level: %d | Name: %s\n", u.username, u.level, u.fullname);
+    fclose(f);
+}
 
-    printf("Editing Car Information\n");
+void read_line(const char *p, char *b, size_t n) {
+    printf("%s", p); fflush(stdout);
+    if (!fgets(b, (int)n, stdin)) return;
+    b[strcspn(b, "\n")] = 0;
+}
 
-    /* Search for the car by license plate */
-    printf("Enter the license plate of the car to edit: ");
-    scanf("%14s", plate);
-    getchar(); // Clean buffer
-
-    while (temp != NULL) {
-        if (strcmp(temp->car.plate, plate) == 0) {
-            break;
-        }
-        temp = temp->next;
+int read_int(const char *p, int min, int max) {
+    char line[128]; int v;
+    while (1) {
+        read_line(p, line, sizeof(line));
+        if (sscanf(line, "%d", &v) == 1 && v >= min && v <= max) return v;
+        printf("Invalid input. Try again: ");
     }
+}
 
-    if (temp == NULL) {
-        printf("Car with license plate %s not found.\n", plate);
-        return;
+double read_double(const char *p, double min, double max) {
+    char line[128]; double v;
+    while (1) {
+        read_line(p, line, sizeof(line));
+        if (sscanf(line, "%lf", &v) == 1 && v >= min && v <= max) return v;
+        printf("Invalid input. Try again: ");
     }
+}
 
-    /* Menu for editing specific parameters */
-    while (stay) {
-        printf("Editing Car: %s (%s), enter the desired option\n", temp->car.model, temp->car.plate);
-        printf("1. Price\n");
-        printf("2. Kilometrage\n");
-        printf("3. Color\n");
-        printf("4. Test Validity (1-Yes, 0-No)\n");
-        printf("5. Finish and Save\n");
-        printf("Your choice: ");
+int read_bool01(const char *p) { return read_int(p, 0, 1); }
+int read_tristate(const char *p) { return read_int(p, -1, 1); }
 
-        if (scanf("%d", &choice) != 1) {
-            printf("Invalid input. Please enter a number.\n");
-            while (getchar() != '\n');
-            continue;
-        }
-        getchar(); // Clean buffer
-
-        switch (choice) {
-            case 1:
-                printf("Enter new price: ");
-                scanf("%lf", &temp->car.price);
-                break;
-            case 2:
-                printf("Enter new kilometrage: ");
-                scanf("%lf", &temp->car.mileage);
-                break;
-            case 3:
-                printf("Enter new color: ");
-                scanf("%19s", temp->car.color);
-                break;
-            case 4:
-                printf("Is the test valid? (1/0): ");
-                scanf("%d", &temp->car.test_valid);
-                break;
-            case 5:
-                stay = 0;
-                continue;
-            default:
-                printf("Option not available.\n");
-                continue;
-        }
-        
-        if (stay) {
-            printf("Change another parameter for this car? (1-Yes / 0-No): ");
-            scanf("%d", &stay);
-            getchar();
-        }
+date_t read_date(const char *p) {
+    date_t d;
+    while (1) {
+        char line[128]; read_line(p, line, sizeof(line));
+        if (sscanf(line, "%d %d %d", &d.day, &d.month, &d.year) == 3) return d;
+        printf("Invalid date (dd mm yyyy): ");
     }
+}
 
-    sprintf(details, "Updated car details: %s", temp->car.plate);
-    update_log(currentUser, ACT_UPDATE_CAR, details);
+int date_cmp(date_t a, date_t b) {
+    if (a.year != b.year) return a.year - b.year;
+    if (a.month != b.month) return a.month - b.month;
+    return a.day - b.day;
+}
 
-    printf("Car details updated in memory and log. Returning to main menu.\n");
+int date_in_range(date_t x, int use_min, date_t mn, int use_max, date_t mx) {
+    if (use_min && date_cmp(x, mn) < 0) return 0;
+    if (use_max && date_cmp(x, mx) > 0) return 0;
+    return 1;
+}
 
-    /*Then use the save all cars function*/
+int string_contains_ci(const char *haystack, const char *needle) {
+    if (!needle || !*needle) return 1;
+    char *h = strdup(haystack), *n = strdup(needle);
+    for (int i = 0; h[i]; i++) h[i] = tolower(h[i]);
+    for (int i = 0; n[i]; i++) n[i] = tolower(n[i]);
+    int res = strstr(h, n) != NULL;
+    free(h); free(n); return res;
 }
