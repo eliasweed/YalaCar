@@ -6,7 +6,7 @@
 /* =========================
    Constants / File names
    ========================= */
-#define USERS_FILE "users.dat"
+#define USERS_FILE "users.da"
 #define CARS_FILE  "cars.dat"
 #define LOG_FILE   "log.txt"
 
