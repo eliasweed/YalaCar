@@ -1,2 +1,54 @@
 [2026-01-14 19:00:05] user=admin level=3 action=LOGIN_SUCCESS details=Login success
 [2026-01-14 19:02:05] user=admin level=3 action=ADD_CAR details=Added car
+[2026-01-14 19:13:37] user=admin level=3 action=LOGIN_SUCCESS details=Login success
+[2026-01-14 19:13:53] user=admin level=3 action=DELETE_CAR details=Deleted car
+[2026-01-14 19:15:09] user=admin level=3 action=ADD_CAR details=65436543
+[2026-01-14 19:17:48] user=admin level=3 action=ADD_USER details=Prince
+[2026-01-14 19:18:01] user=Prince level=2 action=LOGIN_SUCCESS details=Login success
+[2026-01-14 19:18:11] user=admin level=3 action=LOGIN_SUCCESS details=Login success
+[2026-01-14 19:18:15] user=admin level=3 action=DELETE_USER details=d
+[2026-01-14 19:18:28] user=admin level=3 action=DELETE_USER details=Prince
+[2026-01-14 19:18:49] user=admin level=3 action=ADD_USER details=Loser
+[2026-01-14 19:19:20] user=Loser level=1 action=LOGIN_SUCCESS details=Login success
+[2026-01-14 19:19:32] user=admin level=3 action=LOGIN_SUCCESS details=Login success
+[2026-01-14 19:19:36] user=admin level=3 action=DELETE_USER details=Loser
+[2026-01-14 19:21:58] user=admin level=3 action=LOGIN_SUCCESS details=Login success
+[2026-01-14 19:22:10] user=administrator level=3 action=UPDATE_PROFILE details=Profile fields updated
+[2026-01-14 19:22:20] user=administrator level=3 action=LOGIN_SUCCESS details=Login success
+[2026-01-14 19:22:33] user=administrator level=3 action=UPDATE_PROFILE details=Profile fields updated
+[2026-01-14 19:22:53] user=administrator level=3 action=LOGIN_SUCCESS details=Login success
+[2026-01-14 19:22:59] user=admin level=3 action=UPDATE_PROFILE details=Profile fields updated
+[2026-01-14 19:23:07] user=admin level=3 action=UPDATE_PROFILE details=Profile fields updated
+[2026-01-14 19:23:13] user=admin level=3 action=LOGIN_SUCCESS details=Login success
+[2026-01-14 19:24:01] user=admin level=3 action=ADD_USER details=Slave
+[2026-01-14 19:24:13] user=Slave level=1 action=LOGIN_SUCCESS details=Login success
+[2026-01-14 19:24:24] user=Slave level=1 action=UPDATE_PROFILE details=Profile fields updated
+[2026-01-14 19:24:32] user=Simple level=1 action=UPDATE_PROFILE details=Profile fields updated
+[2026-01-14 19:24:38] user=Simple level=1 action=UPDATE_PROFILE details=Profile fields updated
+[2026-01-14 19:24:43] user=Simple level=1 action=LOGIN_SUCCESS details=Login success
+[2026-01-14 19:24:54] user=admin level=3 action=LOGIN_SUCCESS details=Login success
+[2026-01-14 19:25:05] user=admin level=3 action=ADD_USER details=work
+[2026-01-14 19:25:42] user=admin level=3 action=ADD_USER details=ddd
+[2026-01-14 19:25:49] user=work level=2 action=LOGIN_SUCCESS details=Login success
+[2026-01-14 19:27:06] user=work level=2 action=ADD_CAR details=4430144
+[2026-01-14 19:29:51] user=admin level=3 action=LOGIN_SUCCESS details=Login success
+[2026-01-14 19:30:43] user=admin level=3 action=LOGIN_SUCCESS details=Login success
+[2026-01-14 19:31:05] user=admin level=3 action=LOGIN_SUCCESS details=Login success
+[2026-01-14 19:35:05] user=admin level=3 action=LOGIN_SUCCESS details=Login success
+[2026-01-14 19:37:31] user=admin level=3 action=LOGIN_SUCCESS details=Login success
+[2026-01-14 19:40:03] user=admin level=3 action=LOGIN_SUCCESS details=Login success
+[2026-01-14 19:46:29] user=user1 level=2 action=LOGIN_SUCCESS details=Login success
+[2026-01-14 19:46:35] user=user2 level=1 action=LOGIN_SUCCESS details=Login success
+[2026-01-14 19:46:47] user=Mike Sucks level=1 action=UPDATE_PROFILE details=Profile fields updated
+[2026-01-14 19:47:11] user=Mike Sucks level=1 action=LOGIN_SUCCESS details=Login success
+[2026-01-14 19:47:17] user=user2 level=1 action=UPDATE_PROFILE details=Profile fields updated
+[2026-01-14 19:47:20] user=admin level=3 action=LOGIN_SUCCESS details=Login success
+[2026-01-14 19:47:38] user=admin level=3 action=ADD_USER details=ben
+[2026-01-14 19:47:41] user=ben level=3 action=LOGIN_SUCCESS details=Login success
+[2026-01-14 19:47:49] user=ben level=3 action=DELETE_USER details=user10
+[2026-01-14 19:48:13] user=ben level=3 action=LOGIN_SUCCESS details=Login success
+[2026-01-14 19:48:29] user=ben level=3 action=ADD_USER details=user10
+[2026-01-14 19:49:07] user=ben level=3 action=ADD_USER details=Elia
+[2026-01-14 19:49:19] user=ben level=3 action=ADD_USER details=Eyalos
+[2026-01-14 19:49:23] user=Elia level=3 action=LOGIN_SUCCESS details=Login success
+[2026-01-14 19:49:31] user=Eyalos level=3 action=LOGIN_SUCCESS details=Login success

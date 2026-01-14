@@ -69,7 +69,6 @@ static const char* get_field_ptr(const car_t *c, int tf) {
 /* ==========================================================
    SECTION 2: LINKED LIST MANAGEMENT
    ========================================================== */
-
 static car_node* create_node(const car_t *c) {
     car_node *new_node = (car_node*)malloc(sizeof(car_node));
     if (!new_node) return NULL;
@@ -216,13 +215,29 @@ void run_main_menu(user_t *current_user) {
 }
 
 /* ==========================================================
-   SECTION 4: CAR OPERATIONS (LinkedList Based)
+   SECTION 4: CAR OPERATIONS
    ========================================================== */
 
 void print_car(const car_t *c) {
+    printf("\n--------------------------------------------------\n");
+    printf("[%d] %s %s (%s) - Color: %s\n", c->serial, c->make, c->model, c->plate, c->color);
+    printf("Price: $%.2f | Mileage: %d km | Seats: %d\n", c->price, c->mileage, c->seats);
+    
+    if (c->is_electric) {
+        printf("Type: Electric | Battery: %.1f kWh | Range: %.1f km\n", c->battery_kwh, c->range_km);
+    } else {
+        printf("Type: Fuel | Engine: %.0f CC\n", c->engine_cc);
+    }
+
+    printf("Features: [%s] [%s] [%s] | Test: %s\n", 
+           c->is_luxury ? "Luxury" : "Standard",
+           c->is_automatic ? "Automatic" : "Manual",
+           c->is_family ? "Family" : "Not family",
+           c->test_valid ? "Valid" : "Expired");
+    printf("Dates: Manufactured: %02d/%02d/%d | On-Road: %02d/%02d/%d\n",
+           c->manufacture_date.day, c->manufacture_date.month, c->manufacture_date.year,
+           c->road_date.day, c->road_date.month, c->road_date.year);
     printf("--------------------------------------------------\n");
-    printf("Serial: %d | Plate: %s | Model: %s | Make: %s\n", c->serial, c->plate, c->model, c->make);
-    printf("Price: %.2f | Mileage: %d | Electric: %s\n", c->price, c->mileage, c->is_electric ? "Yes" : "No");
 }
 
 void cars_list_all_flow(const user_t *current_user, car_node *head) {
@@ -231,38 +246,73 @@ void cars_list_all_flow(const user_t *current_user, car_node *head) {
 }
 
 void cars_search_flow(const user_t *current_user, car_node *head) {
-    int tf = read_int("Search field (1=Model 2=Make 3=Plate 4=Color): ", 1, 4);
-    char q[64]; read_line("Value: ", q, sizeof(q));
+    printf("\n--- Advanced Search ---\n");
+    printf("1) Model\n2) Make\n3) Plate\n4) Color\n5) All:\nValue: ");
+    int tf = read_int("", 1, 5);
+    char q[64] = "";
+    if (tf != 5) read_line("Search term: ", q, sizeof(q));
+
+    double max_p = read_double("Max Price (-1 to ignore): ", -1.0, 1e12);
+    int max_m = read_int("Max Mileage (-1 to ignore): ", -1, 2000000);
+    int q_elec = read_tristate("Electric? (-1 Any, 0 No, 1 Yes): ");
+    int q_lux = read_tristate("Luxury? (-1 Any, 0 No, 1 Yes): ");
+
     int found = 0;
-    while (head) {
-        if (!q[0] || string_contains_ci(get_field_ptr(&(head->car), tf), q)) {
-            print_car(&(head->car)); found++;
-        }
-        head = head->next;
+    car_node *curr = head;
+    while (curr) {
+        car_t *c = &(curr->car);
+        if (tf != 5 && q[0] && !string_contains_ci(get_field_ptr(c, tf), q)) goto next;
+        if (max_p >= 0 && c->price > max_p) goto next;
+        if (max_m >= 0 && c->mileage > max_m) goto next;
+        if (q_elec != -1 && c->is_electric != q_elec) goto next;
+        if (q_lux != -1 && c->is_luxury != q_lux) goto next;
+
+        print_car(c);
+        found++;
+    next:
+        curr = curr->next;
     }
-    printf("Matches: %d\n", found);
+    printf("Total matches: %d\n", found);
 }
 
 void cars_add_flow(const user_t *current_user, car_node **head) {
     car_t c; memset(&c, 0, sizeof(c));
-    c.serial = read_int("Serial: ", 1, 1e9);
+    printf("\n--- Add New Car ---\n");
+    c.serial = read_int("Serial Number: ", 1, 1e9);
     read_line("Model: ", c.model, MAX_MODEL);
-    read_line("Plate: ", c.plate, MAX_PLATE);
     read_line("Make: ", c.make, MAX_MAKE);
+    read_line("Plate: ", c.plate, MAX_PLATE);
+    read_line("Color: ", c.color, MAX_COLOR);
+    c.seats = read_int("Seats: ", 1, 100);
+    c.mileage = read_int("Mileage (km): ", 0, 2000000);
     c.price = read_double("Price: ", 0, 1e12);
+    
     c.is_electric = read_bool01("Electric? (0/1): ");
-    c.manufacture_date = read_date("Date (dd mm yyyy): ");
+    if (c.is_electric) {
+        c.battery_kwh = read_double("Battery kWh: ", 0, 1000);
+        c.range_km = read_double("Range km: ", 0, 5000);
+    } else {
+        c.engine_cc = read_double("Engine CC: ", 0, 20000);
+    }
+    c.is_luxury = read_bool01("Luxury? (0/1): ");
+    c.is_automatic = read_bool01("Automatic? (0/1): ");
+    c.is_family = read_bool01("Family? (0/1): ");
+    c.test_valid = read_bool01("Test Valid? (0/1): ");
+    printf("Manufacture "); c.manufacture_date = read_date("(dd mm yyyy): ");
+    printf("On-Road "); c.road_date = read_date("(dd mm yyyy): ");
+
     insert_sorted(head, create_node(&c));
     sync_list_to_file(*head);
-    log_action(current_user, ACT_ADD_CAR, "Added car");
+    log_action(current_user, ACT_ADD_CAR, c.plate);
 }
 
 void cars_update_by_serial(const user_t *current_user, car_node *head, int serial) {
     while (head && head->car.serial != serial) head = head->next;
-    if (!head) { printf("Serial not found.\n"); return; }
+    if (!head) { printf("Not found.\n"); return; }
     head->car.price = read_double("New price: ", 0, 1e12);
+    head->car.mileage = read_int("New mileage: ", 0, 2000000);
     sync_list_to_file(head);
-    log_action(current_user, ACT_UPDATE_CAR, "Updated price");
+    log_action(current_user, ACT_UPDATE_CAR, "Updated price/mileage");
 }
 
 void cars_delete_by_serial(const user_t *current_user, car_node **head, int serial) {
@@ -278,13 +328,13 @@ void cars_delete_by_serial(const user_t *current_user, car_node **head, int seri
 }
 
 /* ==========================================================
-   SECTION 5: USER MANAGEMENT (Admin Only)
+   SECTION 5: USER MANAGEMENT
    ========================================================== */
 
 void users_list_flow(const user_t *current_user) {
     FILE *f = fopen(USERS_FILE, "rb");
     user_t u;
-    printf("\n--- System Users ---\n");
+    printf("\n--- Users ---\n");
     while (fread(&u, sizeof(user_t), 1, f))
         printf("User: %-15s | Level: %d | Name: %s\n", u.username, u.level, u.fullname);
     fclose(f);
@@ -337,16 +387,52 @@ void users_change_level_flow(const user_t *current_user) {
 }
 
 void change_personal_info(user_t *User) {
-    read_line("New Full Name: ", User->fullname, MAX_FULLNAME);
+    printf("\n--- Update Profile ---\n");
+    printf("1) Change Username\n2) Change Password\n3) Change Full Name\n0) Cancel\n");
+    int choice = read_int("Choose field to update: ", 0, 3);
+
+    if (choice == 0) return;
+
+    char old_username[MAX_USERNAME];
+    strcpy(old_username, User->username);
+
+    switch (choice) {
+        case 1:
+            read_line("Enter new Username: ", User->username, MAX_USERNAME);
+            printf("Username updated to: %s\n", User->username);
+            break;
+        case 2:
+            read_line("Enter new Password: ", User->password, MAX_PASSWORD);
+            printf("Password updated successfully.\n");
+            break;
+        case 3:
+            read_line("Enter new Full Name: ", User->fullname, MAX_FULLNAME);
+            printf("Full name updated to: %s\n", User->fullname);
+            break;
+    }
+
+    /* Synchronize the change to the binary file */
     FILE *f = fopen(USERS_FILE, "rb+");
+    if (!f) return;
+
     user_t tmp;
+    int found = 0;
     while (fread(&tmp, sizeof(user_t), 1, f)) {
-        if (strcmp(tmp.username, User->username) == 0) {
+        /* We match based on the old username before the change */
+        if (strcmp(tmp.username, old_username) == 0) {
             fseek(f, -((long)sizeof(user_t)), SEEK_CUR);
-            fwrite(User, sizeof(user_t), 1, f); break;
+            fwrite(User, sizeof(user_t), 1, f);
+            found = 1;
+            break;
         }
     }
     fclose(f);
+
+    if (found) {
+        log_action(User, ACT_UPDATE_PROFILE, "Profile fields updated");
+    } else {
+        printf("Error: Could not sync profile to file.\n");
+    }
 }
 
 /* ==========================================================
