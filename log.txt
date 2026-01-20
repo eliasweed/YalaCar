@@ -6,3 +6,4 @@
 [2026-01-13 21:25:03] user=admin level=3 action=UPDATE_CAR details=Price updated
 [2026-01-13 21:25:49] user=admin level=3 action=DELETE_CAR details=Deleted car
 [2026-01-13 21:27:18] user=admin level=3 action=ADD_CAR details=Car added sorted
+[2026-01-20 18:41:53] user=admin level=3 action=LOGIN_SUCCESS details=Login success
